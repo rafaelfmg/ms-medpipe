@@ -1,1 +1,1 @@
-# ms-panotator-medpipe
+# ms-medpipe

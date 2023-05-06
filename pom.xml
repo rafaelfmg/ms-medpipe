@@ -9,9 +9,9 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.tcc</groupId>
-	<artifactId>ms-pannotator-medpipe</artifactId>
+	<artifactId>ms-medpipe</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>ms-pannotator-medpipe</name>
+	<name>ms-medpipe</name>
 	<description>TCC Pannotator e Medpipe</description>
 	<properties>
 		<java.version>11</java.version>
