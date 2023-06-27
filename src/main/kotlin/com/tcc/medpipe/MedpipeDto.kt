@@ -1,6 +1,6 @@
 package com.tcc.medpipe
 
 data class MedpipeDto(
-    val pathname: String = "",
+    val fastaFile: String = "",
     val parameter: String = ""
 )
