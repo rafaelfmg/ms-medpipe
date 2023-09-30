@@ -1,6 +1,8 @@
-package com.tcc.medpipe
+package com.tcc.medpipe.service
 
-import com.tcc.medpipe.file.DirectoryRoot.MEDPIPE_FILES
+import com.tcc.medpipe.domain.model.MedpipeControl
+import com.tcc.medpipe.domain.repository.MedpipeControlRepository
+import com.tcc.file.DirectoryRoot.MEDPIPE_FILES
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service

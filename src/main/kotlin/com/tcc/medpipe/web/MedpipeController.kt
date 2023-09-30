@@ -1,5 +1,7 @@
-package com.tcc.medpipe
+package com.tcc.medpipe.web
 
+import com.tcc.medpipe.domain.model.MedpipeControl
+import com.tcc.medpipe.service.MedpipeService
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable

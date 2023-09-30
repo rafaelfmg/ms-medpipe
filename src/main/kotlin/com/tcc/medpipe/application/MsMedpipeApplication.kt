@@ -1,4 +1,4 @@
-package com.tcc
+package com.tcc.medpipe.application
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication

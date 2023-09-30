@@ -1,4 +1,4 @@
-package com.tcc.medpipe
+package com.tcc.medpipe.domain.model
 
 import javax.persistence.Entity
 import javax.persistence.GeneratedValue
