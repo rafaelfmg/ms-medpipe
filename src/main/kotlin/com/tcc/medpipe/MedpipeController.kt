@@ -1,7 +1,6 @@
-package com.tcc.medpipe.web
+package com.tcc.medpipe
 
-import com.tcc.medpipe.domain.model.MedpipeControl
-import com.tcc.medpipe.service.MedpipeService
+import com.tcc.log
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -15,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile
 @RestController
 @RequestMapping("/v1/medpipe")
 class MedpipeController(val medpipeService: MedpipeService) {
+
     @PostMapping("/run")
     fun runFileProcess(
         @RequestParam("file") file: MultipartFile,
@@ -25,9 +25,13 @@ class MedpipeController(val medpipeService: MedpipeService) {
         @RequestParam("email") email: String,
         @RequestParam("membraneCitoplasm", required = false, defaultValue = "") membraneCitoplasm: String
     ): String {
+        log.info("[runFileProcess] - Init run...")
         val directoryRoot = medpipeService.buildDirectory(folderName)
+        log.info("[runFileProcess] - directoryRoot: $directoryRoot")
         val fileResult = medpipeService.saveFile(file, directoryRoot)
+        log.info("[runFileProcess] - fileResult: $fileResult")
         val process = medpipeService.saveControl(MedpipeControl(process = folderName, status = 1))
+        log.info("[runFileProcess] - process: $process")
         medpipeService.runScript(
             fileResult,
             cellWall,
@@ -37,6 +41,7 @@ class MedpipeController(val medpipeService: MedpipeService) {
             membraneCitoplasm,
             process
         )
+        log.info("[runFileProcess] - script terminated: $directoryRoot;${process.id}")
         return "$directoryRoot;${process.id}"
     }
 
@@ -51,6 +56,27 @@ class MedpipeController(val medpipeService: MedpipeService) {
     @GetMapping("/status/{id}")
     fun getStatus(@PathVariable id: Long): Long? {
         return medpipeService.findStatusProcess(id)
+    }
+
+    @GetMapping("/status")
+    fun getAllStatus(): List<MedpipeControl> {
+        return medpipeService.findAllStatusProcess()
+    }
+
+    @GetMapping("/signal")
+    fun getSignalFileResult(
+        @RequestParam("fileName") fileName: String,
+        @RequestParam("type") type: String
+    ): String {
+        return medpipeService.readFileInfo(fileName, type)
+    }
+
+    @GetMapping("/tmh")
+    fun getTmhFileResult(
+        @RequestParam("fileName") fileName: String,
+        @RequestParam("type") type: String
+    ): String {
+        return medpipeService.readFileInfo(fileName, type)
     }
 
     @PostMapping

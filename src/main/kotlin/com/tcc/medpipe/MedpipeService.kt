@@ -1,14 +1,14 @@
-package com.tcc.medpipe.service
+package com.tcc.medpipe
 
-import com.tcc.medpipe.domain.model.MedpipeControl
-import com.tcc.medpipe.domain.repository.MedpipeControlRepository
 import com.tcc.file.DirectoryRoot.MEDPIPE_FILES
+import com.tcc.log
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.util.FileSystemUtils
 import org.springframework.web.multipart.MultipartFile
 import java.io.BufferedReader
+import java.io.FileReader
 import java.io.IOException
 import java.io.InputStreamReader
 import java.nio.file.Files
@@ -48,25 +48,77 @@ class MedpipeService {
     ) {
         try {
             val command = "sh medpipe $fileResult $cellWall $organismGroup $epitopeLength $email $membraneCitoplasm"
-            println("Incio da execução: " + LocalDateTime.now() + " commad: " + command)
+            log.info("[runScript] - Start exec: " + LocalDateTime.now() + " commad: " + command)
             val process = Runtime.getRuntime().exec(command)
             val processEnd = process.waitFor()
             val result = BufferedReader(InputStreamReader(process.inputStream)).readText()
-            println("Time: " + LocalDateTime.now() + " Result: " + result)
-            println("End process: $processEnd")
+            log.info("[runScript] - Time: " + LocalDateTime.now() + " Result: " + result)
+            log.info("[runScript] End process: $processEnd")
             updateStatus(0, medpipeControl)
         } catch (e: Exception) {
+            log.error("[runScript] Error in process: " + e.message)
             updateStatus(-1, medpipeControl)
             throw RuntimeException(e.message)
         }
     }
 
+    fun readFileInfo(
+        fileName: String,
+        type: String
+    ): String {
+        BufferedReader(FileReader(fileName)).use { br ->
+            return if (type == "SECRETED") {
+                getSignalSecreted(br)
+            } else {
+                getTmh(br, type)
+            }
+        }
+    }
+
+    fun getTmh(br: BufferedReader, type: String): String {
+        val result = StringBuilder()
+        var line = ""
+        var tmhs = ""
+        while (br.readLine()?.also { line = it } != null) {
+            val values: Array<String> = line.split(";").toTypedArray()
+            var tmh = 60
+            if (values.size >= 45 && (values[2] == type)) {
+                tmhs = values[44]
+                tmhs.also {
+                    while (tmh < (60 + (tmhs.toInt() * 4))) {
+                        result.append(values[0] + " " + values[tmh - 3] + " " + values[tmh - 1] + " " + values[tmh] + "\n")
+                        tmh += 4
+                    }
+                }
+
+            }
+        }
+        log.info("BUILDER length: " + result.length)
+        return result.toString()
+    }
+
+    private fun getSignalSecreted(br: BufferedReader): String {
+        var line = ""
+        val result = StringBuilder()
+        while (br.readLine()?.also { line = it } != null) {
+            val values: Array<String> = line.split(";").toTypedArray()
+            if (values.size >= 10 && values[2] == "SECRETED") {
+                result.append(values[0] + ";" + values[2] + ";" + values[10] + "\n")
+            }
+        }
+        log.info("BUILDER length: " + result.length)
+        return result.toString()
+    }
+
     fun saveFile(file: MultipartFile, directoryRoot: String): String {
         try {
+            log.info("[saveFile] - Start - File: " + file.originalFilename + " directoryRoot: " + directoryRoot)
             val path = init(directoryRoot)
             Files.copy(file.inputStream, path?.resolve(file.originalFilename))
-            return (path?.toAbsolutePath() as Any).toString() + path.root.toString() +file.originalFilename
+            log.info("[saveFile] - Result File: " + (path?.toAbsolutePath() as Any).toString() + path.root.toString() + file.originalFilename)
+            return (path?.toAbsolutePath() as Any).toString() + path.root.toString() + file.originalFilename
         } catch (e: Exception) {
+            log.error("[saveFile] -Error: " + e.message)
             if (e is FileAlreadyExistsException) {
                 throw RuntimeException("A file of that name already exists.")
             }
@@ -74,26 +126,31 @@ class MedpipeService {
         }
     }
 
-        fun updateStatus(status: Long, medpipeControl: MedpipeControl){
-            medpipeControl.status=status
-            saveControl(medpipeControl)
-        }
+    fun updateStatus(status: Long, medpipeControl: MedpipeControl) {
+        medpipeControl.status = status
+        saveControl(medpipeControl)
+    }
 
-       fun saveControl(medpipeControl: MedpipeControl): MedpipeControl {
-           return  medpipeControlRepository.save(medpipeControl)
-        }
+    fun saveControl(medpipeControl: MedpipeControl): MedpipeControl {
+        return medpipeControlRepository.save(medpipeControl)
+    }
 
-        fun findStatusProcess(id: Long): Long? {
-            val result =  medpipeControlRepository.findById(id)
+    fun findStatusProcess(id: Long): Long? {
+        val result = medpipeControlRepository.findById(id)
 
-            return if(result.isPresent) result.get().status else -5
-        }
+        return if (result.isPresent) result.get().status else -5
+    }
+
+    fun findAllStatusProcess(): List<MedpipeControl> {
+        return medpipeControlRepository.findAll().toList()
+    }
 
     fun deleteAll() {
         FileSystemUtils.deleteRecursively(root.toFile())
     }
 
     fun getFile(dir: String): ByteArray? {
+        log.info("[getFile] - Start - DIR: $dir")
         val fileSet: MutableSet<String> = HashSet()
         var byteResource: ByteArray? = ByteArray(1)
         Files.newDirectoryStream(Paths.get(dir)).use { stream ->

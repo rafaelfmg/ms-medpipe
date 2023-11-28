@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.tcc</groupId>
 	<artifactId>ms-medpipe</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.1.0-Release</version>
 	<name>ms-medpipe</name>
 	<description>TCC Pannotator e Medpipe</description>
 	<properties>
