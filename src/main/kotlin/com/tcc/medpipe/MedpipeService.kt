@@ -127,11 +127,13 @@ class MedpipeService {
     }
 
     fun updateStatus(status: Long, medpipeControl: MedpipeControl) {
+        log.info("[updateStatus] - Start - Status: $status")
         medpipeControl.status = status
         saveControl(medpipeControl)
     }
 
     fun saveControl(medpipeControl: MedpipeControl): MedpipeControl {
+        log.info("[saveControl] - Start - medpipe process: " + medpipeControl.process)
         return medpipeControlRepository.save(medpipeControl)
     }
 
