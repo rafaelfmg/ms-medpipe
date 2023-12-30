@@ -11,5 +11,6 @@ class MedpipeControl(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
     val process: String? = null,
-    var status: Long? = null
+    var status: Status? = null,
+    var directory: String = ""
 )

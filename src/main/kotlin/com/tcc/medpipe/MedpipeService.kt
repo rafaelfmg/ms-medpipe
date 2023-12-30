@@ -1,8 +1,10 @@
 package com.tcc.medpipe
 
 import com.tcc.file.DirectoryRoot.MEDPIPE_FILES
+import com.tcc.file.ResultFile
 import com.tcc.log
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.http.HttpStatus
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.util.FileSystemUtils
@@ -54,35 +56,49 @@ class MedpipeService {
             val result = BufferedReader(InputStreamReader(process.inputStream)).readText()
             log.info("[runScript] - Time: " + LocalDateTime.now() + " Result: " + result)
             log.info("[runScript] End process: $processEnd")
-            updateStatus(0, medpipeControl)
+            updateStatus(Status.FINISHED, medpipeControl)
         } catch (e: Exception) {
             log.error("[runScript] Error in process: " + e.message)
-            updateStatus(-1, medpipeControl)
+            updateStatus(Status.ERROR, medpipeControl)
             throw RuntimeException(e.message)
         }
+    }
+
+    fun getPrediction(id: Long): StringBuilder {
+        val medpipeControl = findProcess(id) ?: throw RuntimeException(HttpStatus.NOT_FOUND.toString())
+        val fileResult = medpipeControl.directory + "/" + ResultFile.TARGET_FASTA_RESULT_SORT.description
+        var line = ""
+        val result = StringBuilder()
+        BufferedReader(FileReader(fileResult)).use { br ->
+            while (br.readLine()?.also { line = it } != null) {
+                val values: Array<String> = line.split(" ").toTypedArray()
+                result.append(values[0] + " " + values[4].substring(4) + " " + values[6] + "\n")
+            }
+        }
+        return result
     }
 
     fun readFileInfo(
         fileName: String,
         type: String
-    ): String {
+    ): StringBuilder {
         BufferedReader(FileReader(fileName)).use { br ->
             return if (type == "SECRETED") {
                 getSignalSecreted(br)
             } else {
-                getTmh(br, type)
+                getTmh(br)
             }
         }
     }
 
-    fun getTmh(br: BufferedReader, type: String): String {
+    fun getTmh(br: BufferedReader): StringBuilder {
         val result = StringBuilder()
         var line = ""
         var tmhs = ""
         while (br.readLine()?.also { line = it } != null) {
             val values: Array<String> = line.split(";").toTypedArray()
             var tmh = 60
-            if (values.size >= 45 && (values[2] == type)) {
+            if (values.size >= 45 && (values[2] == "PSE" || values[2] == "MEMBRANE")) {
                 tmhs = values[44]
                 tmhs.also {
                     while (tmh < (60 + (tmhs.toInt() * 4))) {
@@ -94,20 +110,20 @@ class MedpipeService {
             }
         }
         log.info("BUILDER length: " + result.length)
-        return result.toString()
+        return result
     }
 
-    private fun getSignalSecreted(br: BufferedReader): String {
+    private fun getSignalSecreted(br: BufferedReader): StringBuilder {
         var line = ""
         val result = StringBuilder()
         while (br.readLine()?.also { line = it } != null) {
             val values: Array<String> = line.split(";").toTypedArray()
             if (values.size >= 10 && values[2] == "SECRETED") {
-                result.append(values[0] + ";" + values[2] + ";" + values[10] + "\n")
+                result.append(values[0] + " " + values[2] + " " + values[10] + "\n")
             }
         }
         log.info("BUILDER length: " + result.length)
-        return result.toString()
+        return result
     }
 
     fun saveFile(file: MultipartFile, directoryRoot: String): String {
@@ -126,7 +142,7 @@ class MedpipeService {
         }
     }
 
-    fun updateStatus(status: Long, medpipeControl: MedpipeControl) {
+    fun updateStatus(status: Status, medpipeControl: MedpipeControl) {
         log.info("[updateStatus] - Start - Status: $status")
         medpipeControl.status = status
         saveControl(medpipeControl)
@@ -140,7 +156,13 @@ class MedpipeService {
     fun findStatusProcess(id: Long): Long? {
         val result = medpipeControlRepository.findById(id)
 
-        return if (result.isPresent) result.get().status else -5
+        return if (result.isPresent) result.get().status?.statusCode else Status.NOT_FOUND?.statusCode
+    }
+
+    fun findProcess(id: Long): MedpipeControl? {
+        val result = medpipeControlRepository.findById(id)
+
+        return if (result.isPresent) result.get() else null
     }
 
     fun findAllStatusProcess(): List<MedpipeControl> {
