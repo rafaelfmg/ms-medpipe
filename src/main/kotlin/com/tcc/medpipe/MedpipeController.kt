@@ -1,9 +1,11 @@
 package com.tcc.medpipe
 
+import com.tcc.file.ResultFile
 import com.tcc.log
 import io.swagger.annotations.Api
 import io.swagger.annotations.ApiOperation
 import io.swagger.annotations.ApiParam
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -24,8 +26,6 @@ class MedpipeController(val medpipeService: MedpipeService) {
     fun runFileProcess(
         @ApiParam(name = "file", value = "file for Medpipe processing")
         @RequestParam("file") file: MultipartFile,
-        @ApiParam(name = "folderName", value = "name of the folder in which the processing results will be stored")
-        @RequestParam("folderName") folderName: String,
         @ApiParam(name = "cellWall", value = "cell wall")
         @RequestParam("cellWall") cellWall: String,
         @ApiParam(name = "organismGroup", value = "organism group")
@@ -38,11 +38,17 @@ class MedpipeController(val medpipeService: MedpipeService) {
         @RequestParam("membraneCitoplasm", required = false, defaultValue = "") membraneCitoplasm: String
     ): String {
         log.info("[runFileProcess] - Init run...")
-        val directoryRoot = medpipeService.buildDirectory(folderName)
+        val directoryRoot = medpipeService.buildDirectory("MsMedpipe" + System.currentTimeMillis().toString())
         log.info("[runFileProcess] - directoryRoot: $directoryRoot")
         val fileResult = medpipeService.saveFile(file, directoryRoot)
         log.info("[runFileProcess] - fileResult: $fileResult")
-        val process = medpipeService.saveControl(MedpipeControl(process = folderName, status = 1))
+        val process = medpipeService.saveControl(
+            MedpipeControl(
+                process = email,
+                status = Status.PROCESSING,
+                directory = directoryRoot
+            )
+        )
         log.info("[runFileProcess] - process: $process")
         medpipeService.runScript(
             fileResult,
@@ -54,43 +60,61 @@ class MedpipeController(val medpipeService: MedpipeService) {
             process
         )
         log.info("[runFileProcess] - script terminated: $directoryRoot;${process.id}")
-        return "$directoryRoot;${process.id}"
+        return "${process.id}"
     }
 
     @ApiOperation(value = "Fetches the resulting file from Medpipe")
     @GetMapping(
-        value = ["/result-file"],
+        value = ["/{id}/result-file"],
         produces = [MediaType.APPLICATION_OCTET_STREAM_VALUE]
     )
-    fun getResultFile(@ApiParam(name = "dir", value = "name of the directory where the file is located") @RequestParam("dir")  dir: String): ByteArray? {
-        return medpipeService.getFile(dir)
+    fun getResultFile(@ApiParam(name = "id", value = "process id") @PathVariable id: Long): ByteArray? {
+        val medpipeControl = medpipeService.findProcess(id) ?: throw RuntimeException(HttpStatus.NOT_FOUND.toString())
+        return medpipeService.getFile(medpipeControl.directory)
     }
 
     @ApiOperation(value = "Fetch Medpipe script processing status")
-    @GetMapping("/status/{id}")
-    fun getStatus(@ApiParam(name = "id", value = "status id") @PathVariable id: Long): Long? {
+    @GetMapping("/{id}/status")
+    fun getStatus(@ApiParam(name = "id", value = "process id") @PathVariable id: Long): Long? {
         return medpipeService.findStatusProcess(id)
     }
 
-    @GetMapping("/status")
-    fun getAllStatus(): List<MedpipeControl> {
+    @GetMapping("/controls")
+    fun getAllControls(): List<MedpipeControl> {
         return medpipeService.findAllStatusProcess()
     }
 
-    @GetMapping("/signal")
-    fun getSignalFileResult(
-        @RequestParam("fileName") fileName: String,
-        @RequestParam("type") type: String
-    ): String {
-        return medpipeService.readFileInfo(fileName, type)
+    @GetMapping("/{id}/control")
+    fun getAllStatus(@ApiParam(name = "id", value = "process id") @PathVariable id: Long): MedpipeControl {
+        return medpipeService.findProcess(id) ?: throw RuntimeException(HttpStatus.NOT_FOUND.toString())
     }
 
-    @GetMapping("/tmh")
+    @ApiOperation(value = "Fetch Medpipe script processing status")
+    @GetMapping("/{id}/predictions")
+    fun getPredictions(@ApiParam(name = "id", value = "process id") @PathVariable id: Long): StringBuilder {
+        return medpipeService.getPrediction(id)
+    }
+
+    @GetMapping("/{id}/signal")
+    fun getSignalFileResult(
+        @ApiParam(name = "id", value = "process id") @PathVariable id: Long
+    ): StringBuilder {
+        val medpipeControl = medpipeService.findProcess(id) ?: throw RuntimeException(HttpStatus.NOT_FOUND.toString())
+        return medpipeService.readFileInfo(
+            medpipeControl.directory + "/" + ResultFile.TARGET_FASTA_CSV.description,
+            "SECRETED"
+        )
+    }
+
+    @GetMapping("/{id}/tmh")
     fun getTmhFileResult(
-        @RequestParam("fileName") fileName: String,
-        @RequestParam("type") type: String
-    ): String {
-        return medpipeService.readFileInfo(fileName, type)
+        @ApiParam(name = "id", value = "process id") @PathVariable id: Long
+    ): StringBuilder {
+        val medpipeControl = medpipeService.findProcess(id) ?: throw RuntimeException(HttpStatus.NOT_FOUND.toString())
+        return medpipeService.readFileInfo(
+            medpipeControl.directory + "/" + ResultFile.TARGET_FASTA_CSV.description,
+            "TMH"
+        )
     }
 
     @PostMapping
